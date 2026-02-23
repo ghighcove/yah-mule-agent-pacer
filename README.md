@@ -109,9 +109,19 @@ elif quota_pct > 80:
 
 ---
 
+## Credits & Attribution
+
+- **[ccusage](https://github.com/ryoppippi/ccusage)** by ryoppippi — the underlying CLI that tracks Claude Code token usage. Yah Mule reads ccusage output as its data source.
+- Quota monitoring patterns and sprint gate concepts inspired by the Claude Code community on X and various open discussions around Claude Max subscription management.
+- The KPI design, sprint gate logic, SQLite persistence layer, terminal UI, and calibration system are original work built on top of these foundations.
+
+If you recognize something here as yours and want a specific credit added, open an issue — happy to acknowledge it properly.
+
+---
+
 ## License
 
-MIT. Originally spun out from a personal Claude Code automation stack.
+MIT.
 
 ---
 
