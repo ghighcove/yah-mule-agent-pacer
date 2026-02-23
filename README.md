@@ -19,6 +19,14 @@ Built for [Claude Max](https://claude.ai) subscribers who run heavy agentic work
 
 ---
 
+## Why This Exists
+
+My purpose here was to literally squeeze every cent I could out of my flat-fee agentic AI subscription (Claude Max in this case, but presumably useful for others, and in potentially more complex combos). Future iterations will include other dashboards and innovations, as well as load-balancing measurement.
+
+Drive them mules, YAAAAHHH! Run that nuclear plant at 99%. Don't let the reactor idle — every wasted cycle is a cent you already paid for.
+
+---
+
 ## Requirements
 
 - Python 3.8+
