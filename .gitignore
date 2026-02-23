@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+quota_config.json
+*.db
+*.sqlite
+.env
+.venv/
+venv/
+*.log
+.DS_Store
+Thumbs.db
