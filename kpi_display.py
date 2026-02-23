@@ -31,6 +31,25 @@ from collections import defaultdict
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
+# ── Color support (graceful fallback if colorama not installed) ────────────────
+try:
+    from colorama import init as _colorama_init, Fore, Style
+    _colorama_init(autoreset=False)
+    _GREEN  = Fore.GREEN
+    _YELLOW = Fore.YELLOW
+    _RED    = Fore.RED
+    _CYAN   = Fore.CYAN
+    _RESET  = Style.RESET_ALL
+    _COLORS = True
+except ImportError:
+    _GREEN = _YELLOW = _RED = _CYAN = _RESET = ""
+    _COLORS = False
+
+
+def _c(text, color):
+    """Wrap text in a color if colorama is available."""
+    return f"{color}{text}{_RESET}" if _COLORS else text
+
 DB_PATH     = Path("G:/ai/_data/analytics.db")
 CLAUDE_DIR  = Path.home() / ".claude" / "projects"
 CONFIG_PATH = Path(__file__).parent / "quota_config.json"
@@ -160,42 +179,52 @@ def bar(value, max_val, width=20, fill="#", empty="-"):
     return fill * filled + empty * (width - filled)
 
 
+def colored_bar(value, max_val, width=20, fill="#", empty="-", color=None):
+    """Bar with optional color on the filled portion."""
+    if max_val <= 0:
+        return empty * width
+    filled = int(round(min(value / max_val, 1.0) * width))
+    if color and _COLORS:
+        return f"{color}{fill * filled}{_RESET}{empty * (width - filled)}"
+    return fill * filled + empty * (width - filled)
+
+
 def quota_status(pct):
     if pct < QUOTA_SPRINT_GATE * 100:
-        return "OPEN  "
+        return _c("OPEN   ", _GREEN)
     elif pct < QUOTA_ABORT * 100:
-        return "GATE  "
+        return _c("GATE   ", _YELLOW)
     else:
-        return "PROTECT"
+        return _c("PROTECT", _RED)
 
 
 def efficiency_status(ratio):
     if ratio >= RATIO_BASELINE:
-        return "ON    "
+        return _c("ON    ", _GREEN)
     elif ratio >= RATIO_FLOOR:
-        return "BELOW "
+        return _c("BELOW ", _YELLOW)
     else:
-        return "LOW   "
+        return _c("LOW   ", _RED)
 
 
 def spend_status(pct):
     if pct < 75:
-        return "NORMAL"
+        return _c("NORMAL", _GREEN)
     elif pct < 130:
-        return "HIGH  "
+        return _c("HIGH  ", _YELLOW)
     else:
-        return "HEAVY "
+        return _c("HEAVY ", _RED)
 
 
 def trend_status(projected_quota_pct):
     if projected_quota_pct < 30:
-        return "LIGHT "
+        return _c("LIGHT ", _GREEN)
     elif projected_quota_pct < 65:
-        return "GOOD  "
+        return _c("GOOD  ", _GREEN)
     elif projected_quota_pct < 85:
-        return "FULL  "
+        return _c("FULL  ", _YELLOW)
     else:
-        return "GATE  "
+        return _c("GATE  ", _RED)
 
 
 def fetch_hourly_today():
@@ -481,26 +510,40 @@ def main():
     SEP  = "  " + "-" * 60
     SEP2 = "  " + "." * 60
 
+    def _quota_bar_color(pct):
+        if pct >= QUOTA_ABORT * 100:
+            return _RED
+        elif pct >= QUOTA_SPRINT_GATE * 100:
+            return _YELLOW
+        return _GREEN
+
+    def _ratio_bar_color(ratio):
+        if ratio >= RATIO_BASELINE:
+            return _GREEN
+        elif ratio >= RATIO_FLOOR:
+            return _YELLOW
+        return _RED
+
     print()
-    print("  === QUOTA UTILIZATION  (Claude Max weekly allotment) ===")
+    print(_c("  === QUOTA UTILIZATION  (Claude Max weekly allotment) ===", _CYAN))
     print(SEP)
-    print(f"  ALL-MODELS   ${week_cost:6.2f}  of ~${weekly_quota:.0f}   [{bar(quota_pct, 100)}]  {quota_pct:5.1f}%  [{quota_status(quota_pct)}]")
-    print(f"  SONNET-ONLY  ${sonnet_week_cost:6.2f}  of ~${sonnet_quota:.0f}   [{bar(sonnet_quota_pct, 100)}]  {sonnet_quota_pct:5.1f}%  [{quota_status(sonnet_quota_pct)}]")
+    print(f"  ALL-MODELS   ${week_cost:6.2f}  of ~${weekly_quota:.0f}   [{colored_bar(quota_pct, 100, color=_quota_bar_color(quota_pct))}]  {quota_pct:5.1f}%  [{quota_status(quota_pct)}]")
+    print(f"  SONNET-ONLY  ${sonnet_week_cost:6.2f}  of ~${sonnet_quota:.0f}   [{colored_bar(sonnet_quota_pct, 100, color=_quota_bar_color(sonnet_quota_pct))}]  {sonnet_quota_pct:5.1f}%  [{quota_status(sonnet_quota_pct)}]")
     print(f"  HAIKU        ${haiku_week_cost:5.2f}   ({haiku_pct_of_week:.1f}% of week spend)")
     print(f"  BINDING CAP  {binding_label} ({binding_pct:.1f}% used)  |  gates use this cap")
     print(f"  SPRINT ROOM  ${sprint_room:6.2f}  before {QUOTA_SPRINT_GATE*100:.0f}% gate  (abort at {QUOTA_ABORT*100:.0f}%, sched reserve ${quota_sched:.2f})")
 
     if in_dead_zone:
-        print(f"  !! {reset_label}")
+        print(_c(f"  !! {reset_label}", _RED))
     elif hrs_to_all_models_reset < 24:
-        print(f"  ** RESET SOON  {reset_label}")
+        print(_c(f"  ** RESET SOON  {reset_label}", _YELLOW))
     else:
         print(f"  RESETS       {reset_label}")
 
     print(f"  CALIBRATED   {calib_date}  |  --calibrate N --sonnet-pct M to update")
     print()
 
-    print("  === SPEND EFFICIENCY  (value per subscription dollar) ===")
+    print(_c("  === SPEND EFFICIENCY  (value per subscription dollar) ===", _CYAN))
     print(SEP)
     print(f"  TODAY        ${today_cost:6.2f}   ratio {today_ratio:5.1f}x   [{efficiency_status(today_ratio)}]")
     print(f"  7-DAY ROLL   ${rolling_cost:6.2f}   ratio {rolling_ratio:5.1f}x   [{efficiency_status(rolling_ratio)}]")
@@ -508,7 +551,7 @@ def main():
     print(f"  MODELS       {', '.join(today_models_short) if today_models_short else 'none'}")
     print()
 
-    print("  === SPEND PATTERN  (vs ${:.0f}/wk historical avg) ===".format(WEEKLY_SPEND_BASELINE))
+    print(_c("  === SPEND PATTERN  (vs ${:.0f}/wk historical avg) ===".format(WEEKLY_SPEND_BASELINE), _CYAN))
     print(SEP)
     smooth_label = f"{len(smooth_costs)}d avg"
     print(f"  WEEK SPEND   ${week_cost:6.2f}   Day {days_elapsed}/7  |  ${smoothed_daily:.2f}/day ({smooth_label})  [{spend_status(spend_pct)}]")
@@ -516,10 +559,10 @@ def main():
     print(f"  WEEK START   {week_start.strftime('%Y-%m-%d')}")
     print()
 
-    print("  7-DAY TREND                         ratio")
+    print(_c("  7-DAY TREND                         ratio", _CYAN))
     print(SEP2)
     for d, cost, ratio in trend:
-        b = bar(ratio, max(max_trend_ratio, RATIO_BASELINE * 1.1), width=20)
+        b = colored_bar(ratio, max(max_trend_ratio, RATIO_BASELINE * 1.1), width=20, color=_ratio_bar_color(ratio))
         marker = " <-- today" if d == today_str else ""
         print(f"  {d}  [{b}]  {ratio:5.1f}x{marker}")
     print()
@@ -527,13 +570,13 @@ def main():
     hourly = fetch_hourly_today()
     current_hour = datetime.now().hour
     max_hourly_cost = max((v["cost"] for v in hourly.values()), default=0.01) or 0.01
-    print("  TODAY BY HOUR (24h local)")
+    print(_c("  TODAY BY HOUR (24h local)", _CYAN))
     print(SEP)
     for h in range(24):
         hdata = hourly.get(h, {"cost": 0.0, "output": 0})
         cost_h = hdata["cost"]
         b = bar(cost_h, max_hourly_cost, width=18)
-        now_marker = " <-- now" if h == current_hour else ""
+        now_marker = _c(" <-- now", _YELLOW) if h == current_hour else ""
         active = "*" if cost_h > 0 else " "
         print(f"  {active} {h:02d}  [{b}]  ${cost_h:.2f}{now_marker}")
     print()
