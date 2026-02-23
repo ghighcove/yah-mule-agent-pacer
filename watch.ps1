@@ -1,4 +1,4 @@
-# watch.ps1 -- Yah Mule — Claude Efficiency Live Monitor
+# watch.ps1 -- Yah Mule -- Claude Efficiency Live Monitor
 # Run in a WT pane: .\watch.ps1
 # Or: powershell -ExecutionPolicy Bypass -File G:\ai\yah-mule-agent-pacer\watch.ps1
 
@@ -11,7 +11,7 @@ while ($true) {
 
     $ts = Get-Date -Format "yyyy-MM-dd  HH:mm:ss"
     Write-Host ""
-    Write-Host "  YAH MULE — Claude Efficiency Monitor       $ts" -ForegroundColor Cyan
+    Write-Host "  YAH MULE -- Claude Efficiency Monitor       $ts" -ForegroundColor Cyan
     Write-Host "  ============================================================" -ForegroundColor Cyan
     Write-Host ""
 
