@@ -159,7 +159,7 @@ with Live(build_layout(data), refresh_per_second=1, screen=True) as live:
 ## File Structure
 
 ```
-G:/ai/yah-mule-agent-pacer/
+yah-mule-agent-pacer/
 ├── kpi_display.py          # existing CLI (kept, still works)
 ├── watch.ps1               # existing PS wrapper (kept, still works)
 ├── kpi_data.py             # NEW: pure-data functions, no print statements

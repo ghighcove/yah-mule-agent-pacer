@@ -50,7 +50,7 @@ def _c(text, color):
     """Wrap text in a color if colorama is available."""
     return f"{color}{text}{_RESET}" if _COLORS else text
 
-DB_PATH     = Path("G:/ai/_data/analytics.db")
+DB_PATH     = Path(__file__).parent / "usage_data.db"
 CLAUDE_DIR  = Path.home() / ".claude" / "projects"
 CONFIG_PATH = Path(__file__).parent / "quota_config.json"
 

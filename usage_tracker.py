@@ -1,9 +1,9 @@
 """
 Claude Efficiency Tracker
-Pulls daily cost data from ccusage JSON (authoritative source), writes to SQLite + OUTBOX.
+Pulls daily cost data from ccusage JSON (authoritative source), writes to SQLite.
 Runs: 2:30 AM daily via Task Scheduler. Zero Claude quota cost.
 
-Data source: ccusage (npm global at C:/Users/ghigh/AppData/Roaming/npm/ccusage.cmd)
+Data source: ccusage (npm global — install with: npm install -g ccusage)
 Uses shell=True to ensure ccusage.cmd is found on Windows.
 """
 
@@ -16,8 +16,8 @@ from pathlib import Path
 
 # --- Config ---
 CCUSAGE_CMD = "ccusage"   # Found via shell=True; full path fallback below if needed
-DB_PATH = Path("G:/ai/_data/analytics.db")
-OUTBOX_DIR = Path("G:/z.ai/workspace/BILLY_OUTBOX")
+DB_PATH = Path(__file__).parent / "usage_data.db"
+OUTBOX_DIR = None  # Optional: set to a directory path to write daily usage reports there
 PLAN_MONTHLY_USD = 100.0
 PLAN_DAILY_USD = PLAN_MONTHLY_USD / 30.0
 
@@ -139,7 +139,7 @@ def write_to_db(conn, ccusage_data, week_start):
 
 
 def write_outbox_report(ccusage_data, week_start):
-    if not OUTBOX_DIR.exists():
+    if OUTBOX_DIR is None or not Path(OUTBOX_DIR).exists():
         return
 
     WEEKLY_API_BASELINE = 55.0
@@ -197,7 +197,7 @@ def write_outbox_report(ccusage_data, week_start):
     for m, days in sorted(models_7d.items(), key=lambda x: -x[1]):
         report += f"- {m}: {days} day(s)\n"
 
-    out_path = OUTBOX_DIR / f"USAGE_REPORT_{today}.md"
+    out_path = Path(OUTBOX_DIR) / f"USAGE_REPORT_{today}.md"
     out_path.write_text(report, encoding="utf-8")
     print(f"Report written: {out_path}")
 

@@ -41,7 +41,7 @@ Sprint schedule:
 ## Components to Build
 
 ### 1. `usage_tracker.py`
-**Location**: `G:/ai/automation/efficiency-tracker/usage_tracker.py`
+**Location**: `usage_tracker.py` (repo root)
 **Runs**: Daily 2:30AM via Task Scheduler (after Billy's 2AM dashboard)
 **No Claude involvement** — pure Python, zero quota cost
 
@@ -50,8 +50,8 @@ What it does:
 - Extracts: date, model, input_tokens, output_tokens, cache_create_tokens, cache_read_tokens
 - Computes per-day and rolling-7-day API-equivalent cost (using hardcoded rate table)
 - Determines current week's budget % used
-- Writes one row to `efficiency_daily` table in `G:/ai/_data/analytics.db`
-- Writes `USAGE_REPORT.md` to `G:/z.ai/workspace/BILLY_OUTBOX/`
+- Writes one row to `efficiency_daily` table in `usage_data.db` (local SQLite, auto-created)
+- Optionally writes `USAGE_REPORT.md` to a configured output directory (set `OUTBOX_DIR` in `usage_tracker.py`)
 
 Rate table (hardcoded, update if Anthropic changes pricing):
 ```python
@@ -65,7 +65,7 @@ RATES = {
 ```
 
 ### 2. SQLite Schema Addition
-**DB**: `G:/ai/_data/analytics.db` (new — separate from existing context DB)
+**DB**: `usage_data.db` (local to repo, auto-created on first run, gitignored)
 
 ```sql
 CREATE TABLE IF NOT EXISTS efficiency_daily (
@@ -95,9 +95,8 @@ CREATE TABLE IF NOT EXISTS automated_tasks (
 );
 ```
 
-### 3. `session_check.py` Integration
-**Location**: `G:/ai/content-strategy/scripts/session_check.py`
-**Addition**: Add one block at the top of output:
+### 3. Session Check Integration (optional)
+**Addition**: Add one block at the top of your session check output:
 
 ```
 ━━━ EFFICIENCY STATUS ━━━
@@ -109,9 +108,8 @@ Last overnight run: YYYY-MM-DD HH:MM — N tasks, STATUS
 
 Reads from `analytics.db`. If DB doesn't exist yet, skips silently.
 
-### 4. `generate_dashboard.py` Panel
-**Location**: `G:/ai/_data/generate_dashboard.py`
-**Addition**: New "Efficiency" panel in the HTML dashboard showing:
+### 4. Dashboard Panel (optional)
+**Addition**: New "Efficiency" panel in an HTML dashboard showing:
 - 30-day efficiency ratio trend (sparkline or table)
 - Current week: budget used % + days remaining
 - Automated task completion rate (last 4 weeks)

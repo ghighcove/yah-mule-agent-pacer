@@ -111,7 +111,7 @@ pandas>=2.0  (for chart dataframes)
 
 ### Entry point
 ```
-G:/ai/yah-mule-agent-pacer/web_monitor_streamlit.py
+web_monitor_streamlit.py
 ```
 Launch bat:
 ```bat
@@ -204,8 +204,8 @@ JS (CDN, no install):
 
 ### Entry point
 ```
-G:/ai/yah-mule-agent-pacer/web_server.py
-G:/ai/yah-mule-agent-pacer/templates/index.html
+web_server.py
+templates/index.html
 ```
 Launch bat:
 ```bat

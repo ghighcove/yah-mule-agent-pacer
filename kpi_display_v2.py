@@ -34,7 +34,7 @@ except ImportError:
 
 # ── Constants (mirror kpi_display.py) ─────────────────────────────────────────
 
-DB_PATH     = Path("G:/ai/_data/analytics.db")
+DB_PATH     = Path(__file__).parent / "usage_data.db"
 CLAUDE_DIR  = Path.home() / ".claude" / "projects"
 CONFIG_PATH = Path(__file__).parent / "quota_config.json"
 
