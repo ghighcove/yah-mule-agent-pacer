@@ -1,6 +1,6 @@
 @echo off
-REM Yah Mule -- recovery launcher
-REM Run this if the monitor pane isn't open or you need to restart it.
-REM Opens in a new WT split pane alongside whatever is active.
+REM Yah Mule v2 -- live monitor launcher
+REM Opens a WT split pane and runs kpi_display_v2.py directly.
+REM v2 owns its own rich.live loop -- no watch.ps1 wrapper needed.
 
-wt -w 0 sp -p "Yah Mule" -H --size 0.35
+wt -w 0 sp -p "Yah Mule" -H --size 0.35 -- python "%~dp0kpi_display_v2.py"
