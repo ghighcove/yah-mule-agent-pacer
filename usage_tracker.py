@@ -128,7 +128,7 @@ def write_to_db(conn, ccusage_data, week_start):
     # Update week_budget_pct for this week's rows
     week_str = week_start.strftime("%Y-%m-%d")
     week_cost = sum(r[1] for r in rows if r[0] >= week_str)
-    week_pct = min(week_cost / WEEKLY_API_BASELINE, 1.0)
+    week_pct = week_cost / WEEKLY_API_BASELINE
     c.execute(
         "UPDATE efficiency_daily SET week_budget_pct = ? WHERE date >= ?",
         (round(week_pct, 4), week_str)
