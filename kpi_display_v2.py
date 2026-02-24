@@ -12,7 +12,7 @@ Usage:
     python kpi_display_v2.py --calibrate N [--sonnet-pct M]
 """
 
-__version__ = "2.1.0"
+__version__ = "2.2.0"
 
 import glob
 import json
@@ -237,11 +237,16 @@ def rich_bar(value, max_val, width=18, fill="█", empty="░"):
     return fill * filled + empty * (width - filled)
 
 
-# ── Smokestack (TD-41) ────────────────────────────────────────────────────────
+# ── Smokestack constants ───────────────────────────────────────────────────────
 
 STACK_BODY_H  = 6   # rows of chimney body
 STACK_W       = 7   # inner fill width (chars between | |)
 STACK_SMOKE_H = 2   # rows above chimney opening for overflow smoke
+
+# ── Hourglass & Sparkline constants ───────────────────────────────────────────
+
+SPARK_CHARS = " \u2581\u2582\u2583\u2584\u2585\u2586\u2587\u2588"  # ▁▂▃▄▅▆▇█
+HG_BODY_H   = 3   # rows per half of hourglass (top + bottom)
 
 def _stack_color(ratio):
     """Shared heat-map color for both reactor stacks and hourly bars."""
@@ -252,6 +257,104 @@ def _stack_color(ratio):
     if ratio >= 0.6:  return "green"
     if ratio >= 0.3:  return "cyan"
     return "dim"
+
+
+def _hourly_sparkline(hourly, current_hour, max_cost):
+    """
+    Single-line rich Text sparkline covering hours 0-23.
+    Current hour is bracketed in yellow. Colors relative to day average.
+    """
+    spent_h = [h for h in range(24) if hourly.get(h, {}).get("cost", 0) > 0]
+    total   = sum(hourly.get(h, {}).get("cost", 0) for h in spent_h)
+    avg     = total / len(spent_h) if spent_h else 0.0
+
+    text = Text()
+    for h in range(24):
+        cost = hourly.get(h, {}).get("cost", 0.0)
+        if max_cost > 0 and cost > 0:
+            level = min(int(cost / max_cost * 7) + 1, 8)
+        else:
+            level = 0
+        char = SPARK_CHARS[level]
+        if h == current_hour:
+            text.append("[", style="yellow")
+            col = _stack_color(cost / avg) if (cost > 0 and avg > 0) else "yellow"
+            text.append(char, style=col)
+            text.append("]", style="yellow")
+        else:
+            col = _stack_color(cost / avg) if (cost > 0 and avg > 0) else "dim"
+            text.append(char, style=col)
+    return text
+
+
+def render_hourglass(minutes_elapsed, cost_this_hour, avg_hour):
+    """
+    10-line ASCII hourglass for current hour.
+    Top half empties (# sand), bottom half fills (. sand) as minutes pass (0-59).
+    Color = current-hour burn rate vs day average.
+    Returns list of exactly 10 rich Text lines (matches render_stack / render_mule).
+
+    Line layout: border / top-fill×3 / waist×2 / bot-fill×3 / label = 10
+    """
+    p = min(minutes_elapsed / 59.0, 1.0) if minutes_elapsed > 0 else 0.0
+
+    if avg_hour > 0 and cost_this_hour > 0 and minutes_elapsed > 0:
+        projected_h = cost_this_hour / (minutes_elapsed / 60.0)
+        color = _stack_color(projected_h / avg_hour)
+    elif cost_this_hour > 0:
+        color = "green"
+    else:
+        color = "yellow"   # no spend this hour yet
+
+    W = STACK_W   # 7 — same inner width as smokestack
+
+    top_filled = round((1.0 - p) * HG_BODY_H)   # 3 at :00 → 0 near :59
+    bot_filled = round(p * HG_BODY_H)            # 0 at :00 → 3 near :59
+
+    # Fill widths: top widens at top, bottom widens at bottom
+    top_widths = [7, 5, 3]   # row 0=top(widest), row 2=narrowest
+    bot_widths = [3, 5, 7]   # row 0=narrowest,   row 2=bottom(widest)
+
+    lines = []
+
+    # Line 0: top border
+    lines.append(Text(f"/{'-' * W}\\", style="dim"))
+
+    # Lines 1-3: top half (i=0 is widest; i < top_filled = sand still present)
+    for i in range(HG_BODY_H):
+        w   = top_widths[i]
+        pad = (W - w) // 2
+        if i < top_filled:
+            fill = " " * pad + "#" * w + " " * (W - w - pad)
+            lines.append(Text(f"|{fill}|", style=color))
+        else:
+            lines.append(Text(f"|{' ' * W}|", style="dim"))
+
+    # Lines 4-5: waist
+    waist = "-" * (W - 2)
+    lines.append(Text(f" \\{waist}/ ", style="dim"))
+    lines.append(Text(f" /{waist}\\ ", style="dim"))
+
+    # Lines 6-8: bottom half (i=0 is narrowest; i >= HG_BODY_H-bot_filled = sand arrived)
+    for i in range(HG_BODY_H):
+        w   = bot_widths[i]
+        pad = (W - w) // 2
+        if i >= (HG_BODY_H - bot_filled):
+            fill = " " * pad + "." * w + " " * (W - w - pad)
+            lines.append(Text(f"|{fill}|", style=color))
+        else:
+            lines.append(Text(f"|{' ' * W}|", style="dim"))
+
+    # Line 9: time label (minute elapsed + projected $/h if any spend)
+    elapsed_str = f":{minutes_elapsed:02d}"
+    if cost_this_hour > 0 and minutes_elapsed > 0:
+        pace  = cost_this_hour / (minutes_elapsed / 60.0)
+        label = f"{elapsed_str} ${pace:.1f}/h"
+    else:
+        label = elapsed_str
+    lines.append(Text(f"{label:^{W + 2}}", style=color))
+
+    return lines   # always 1 + 3 + 2 + 3 + 1 = 10 lines
 
 
 # ── Data bundle ───────────────────────────────────────────────────────────────
@@ -469,7 +572,7 @@ def panel_trend(d):
     scale = max(d["max_trend_ratio"], RATIO_BASELINE * 1.1)
     for day, cost, ratio in d["trend"]:
         rc = ratio_color(ratio)
-        marker = " ← today" if day == d["today_str"] else ""
+        marker = " <- today" if day == d["today_str"] else ""
         t.add_row(
             day,
             f"[{rc}]{rich_bar(ratio, scale, width=20)}[/]",
@@ -479,44 +582,97 @@ def panel_trend(d):
 
 
 def panel_hourly(d):
+    """
+    TODAY BY HOUR panel — redesigned v2.2:
+      Row 1: 24-hour sparkline (all hours at a glance, current = [X])
+      Row 2: Stats — peak hour (★), avg $/h, current-hour pace
+      Row 3: Separator
+      Row 4+: Active hours list — current hour FIRST (always visible),
+              then other active hours ascending; pre-dawn (0-6h) dimmed;
+              peak hour marked ★
+    """
     hourly       = d["hourly"]
-    current_hour = datetime.now().hour
+    now          = datetime.now()
+    current_hour = now.hour
+    elapsed_min  = now.minute
 
-    # Hours with actual spend (excludes current if zero — used for avg)
     spent_hours = [h for h in range(24) if hourly.get(h, {}).get("cost", 0) > 0]
     avg_hour    = d["today_cost"] / len(spent_hours) if spent_hours else 0.0
+    max_cost    = max((hourly.get(h, {}).get("cost", 0) for h in range(24)), default=0.01) or 0.01
 
-    max_cost = max((hourly.get(h, {}).get("cost", 0) for h in range(24)), default=0.01) or 0.01
+    # Peak hour
+    peak_hour = max(range(24), key=lambda h: hourly.get(h, {}).get("cost", 0))
+    peak_cost = hourly.get(peak_hour, {}).get("cost", 0)
+
+    # Current hour projected pace
+    cost_this_hour = hourly.get(current_hour, {}).get("cost", 0.0)
+    pace_per_hour  = (cost_this_hour / (elapsed_min / 60.0)) if (cost_this_hour > 0 and elapsed_min > 0) else 0.0
 
     t = Table.grid(padding=(0, 1))
-    t.add_column(width=4, style="dim")
-    t.add_column(width=20)
-    t.add_column(width=8)
+    t.add_column(width=6, style="dim")   # hour label
+    t.add_column(width=26)               # sparkline / bar
+    t.add_column(width=12)               # cost / annotation
 
-    for h in range(24):
-        cost_h = hourly.get(h, {}).get("cost", 0.0)
-        if cost_h == 0 and h != current_hour:
-            continue
-        now_mark = " [yellow]← now[/]" if h == current_hour else ""
-        if h == current_hour and cost_h == 0:
-            color = "yellow"                            # cursor: no spend yet this hour
+    # Row 1: sparkline (all 24 hours)
+    sparkline = _hourly_sparkline(hourly, current_hour, max_cost)
+    t.add_row("[dim]00-23[/]", sparkline, "")
+
+    # Row 2: stats
+    stats_parts = []
+    if peak_cost > 0:
+        stats_parts.append(f"[yellow]★[/] peak [dim]{peak_hour:02d}h[/] ${peak_cost:.2f}")
+    if avg_hour > 0:
+        stats_parts.append(f"[dim]avg ${avg_hour:.2f}/h[/]")
+    if pace_per_hour > 0 and avg_hour > 0:
+        pc = _stack_color(pace_per_hour / avg_hour)
+        stats_parts.append(f"[{pc}]pace ${pace_per_hour:.2f}/h[/]")
+    stats_str = "  ".join(stats_parts) if stats_parts else "[dim]no spend yet[/]"
+    t.add_row("", stats_str, "")
+
+    # Row 3: separator
+    t.add_row(
+        "[dim]------[/]",
+        "[dim]" + "-" * 26 + "[/]",
+        "[dim]------------[/]",
+    )
+
+    # Rows 4+: current hour first, then other active hours ascending
+    DEAD_END = 7   # hours 0-6 = pre-dawn, shown dim
+    active_others = [h for h in range(24)
+                     if h != current_hour and hourly.get(h, {}).get("cost", 0) > 0]
+    display_hours = [current_hour] + active_others
+
+    for h in display_hours:
+        cost_h  = hourly.get(h, {}).get("cost", 0.0)
+        is_dead = (h < DEAD_END and h != current_hour)
+        is_peak = (h == peak_hour and peak_cost > 0)
+
+        now_mark  = " [yellow]<- now[/]" if h == current_hour else ""
+        peak_mark = " [yellow]*[/]" if is_peak else ""
+
+        if is_dead:
+            color = "dim"
+        elif h == current_hour and cost_h == 0:
+            color = "yellow"
         elif cost_h > 0 and avg_hour > 0:
-            color = _stack_color(cost_h / avg_hour)    # heat relative to today's avg hour
+            color = _stack_color(cost_h / avg_hour)
         elif cost_h > 0:
-            color = "green"                             # first active hour, no avg yet
+            color = "green"
         else:
             color = "dim"
+
         t.add_row(
             f"{h:02d}h",
-            f"[{color}]{rich_bar(cost_h, max_cost, width=18)}[/]",
+            f"[{color}]{rich_bar(cost_h, max_cost, width=24)}[/]{peak_mark}",
             f"[{color}]${cost_h:.2f}[/]{now_mark}",
         )
+
     return Panel(t, title="[cyan]TODAY BY HOUR[/]", border_style="cyan", padding=(0, 1))
 
 
 def render_stack(value, target, val_fmt="{:.1f}"):
     """
-    Returns a list of rich Text lines (top→bottom) for one ASCII smokestack.
+    Returns a list of rich Text lines (top->bottom) for one ASCII smokestack.
     Total lines = STACK_SMOKE_H + STACK_BODY_H + 2  (base row + value label).
     Fill from bottom; top of body = 100% of target ("just right" marker).
     Overflow above target spills into smoke rows.
@@ -530,7 +686,7 @@ def render_stack(value, target, val_fmt="{:.1f}"):
     # ── Smoke rows (shown above chimney when overflow > 0) ──
     for s in range(STACK_SMOKE_H):
         tier      = STACK_SMOKE_H - 1 - s        # 0 = closest to chimney
-        threshold = tier * 0.2                    # tier=0 → any overflow; tier=1 → >20% overflow
+        threshold = tier * 0.2                    # tier=0 -> any overflow; tier=1 -> >20% overflow
         if overflow > threshold:
             smoke_w = min(int(overflow * W * 1.5) + tier, W - 1)
             smoke   = ("@" * smoke_w).center(W)
@@ -582,22 +738,35 @@ def render_mule(projected_pct):
 
 
 def panel_smokestacks(d):
+    """
+    REACTOR panel — 4 columns: EFF stack | PROJ stack | mule | hourglass
+    Hourglass (v2.2): ASCII hourglass for current hour, top empties / bottom fills.
+    """
+    hourly = d["hourly"]
+    now    = datetime.now()
+
+    spent_hours    = [h for h in range(24) if hourly.get(h, {}).get("cost", 0) > 0]
+    avg_hour       = d["today_cost"] / len(spent_hours) if spent_hours else 0.0
+    cost_this_hour = hourly.get(now.hour, {}).get("cost", 0.0)
+
     eff_lines  = render_stack(d["today_ratio"],       RATIO_BASELINE,          val_fmt="EFF {:.1f}x")
     pace_lines = render_stack(d["projected_binding"], QUOTA_SPRINT_GATE * 100, val_fmt="PROJ {:.0f}%")
     mule_lines = render_mule(d["projected_binding"])
+    hg_lines   = render_hourglass(now.minute, cost_this_hour, avg_hour)
 
-    t = Table.grid(padding=(0, 4))
-    t.add_column(width=STACK_W + 2)
-    t.add_column(width=STACK_W + 2)
-    t.add_column(width=12)
+    t = Table.grid(padding=(0, 3))
+    t.add_column(width=STACK_W + 2)   # EFF stack
+    t.add_column(width=STACK_W + 2)   # PROJ stack
+    t.add_column(width=12)            # mule
+    t.add_column(width=STACK_W + 2)   # hourglass
 
-    for left, right, mule in zip(eff_lines, pace_lines, mule_lines):
-        t.add_row(left, right, mule)
+    for left, right, mule, hg in zip(eff_lines, pace_lines, mule_lines, hg_lines):
+        t.add_row(left, right, mule, hg)
 
     return Panel(
         t,
         title="[cyan]REACTOR[/]",
-        subtitle="[dim]── = target  @@ = overflow  |  mule color = projected quota risk[/]",
+        subtitle="[dim]-- = target  @@ = overflow  :MM = hour elapsed  |  mule = projected risk[/]",
         border_style="cyan",
         padding=(0, 2),
     )
@@ -609,11 +778,11 @@ def build_layout(d, ts):
     layout = Layout()
     layout.split_column(
         Layout(name="header",      size=1),
-        Layout(name="top_row",     size=11),
-        Layout(name="pattern",     size=7),
-        Layout(name="trend",       size=11),
-        Layout(name="smokestacks", size=12),
-        Layout(name="hourly"),
+        Layout(name="top_row",     size=9),    # quota(7+2) / efficiency(4+2) -> max=9
+        Layout(name="pattern",     size=5),    # 3 rows + 2 border
+        Layout(name="trend",       size=9),    # 7 rows + 2 border
+        Layout(name="smokestacks", size=12),   # 10 rows + 2 border
+        Layout(name="hourly"),                 # remaining terminal space
     )
     layout["top_row"].split_row(
         Layout(name="quota",      ratio=3),
