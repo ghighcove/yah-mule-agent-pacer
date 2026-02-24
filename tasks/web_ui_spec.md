@@ -115,7 +115,7 @@ web_monitor_streamlit.py
 ```
 Launch bat:
 ```bat
-streamlit run G:\ai\yah-mule-agent-pacer\web_monitor_streamlit.py
+streamlit run web_monitor_streamlit.py
 ```
 
 ---
@@ -209,7 +209,7 @@ templates/index.html
 ```
 Launch bat:
 ```bat
-python G:\ai\yah-mule-agent-pacer\web_server.py
+python web_server.py
 ```
 
 ---

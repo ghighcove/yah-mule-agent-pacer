@@ -1,9 +1,9 @@
 # watch.ps1 -- Yah Mule -- Claude Efficiency Live Monitor
 # Run in a WT pane: .\watch.ps1
-# Or: powershell -ExecutionPolicy Bypass -File G:\ai\yah-mule-agent-pacer\watch.ps1
+# Or: powershell -ExecutionPolicy Bypass -File <path-to>\yah-mule-agent-pacer\watch.ps1
 
-$PYTHON     = "E:\Python\Python38-32\python.exe"
-$KPI_SCRIPT = "G:\ai\yah-mule-agent-pacer\kpi_display.py"
+$PYTHON     = "python"   # Update to full path if needed (e.g., "C:\Python311\python.exe")
+$KPI_SCRIPT = "$PSScriptRoot\kpi_display.py"
 $REFRESH    = 60
 
 while ($true) {
