@@ -159,7 +159,7 @@ def write_outbox_report(ccusage_data, week_start):
         ccusage_data.get((week_start + timedelta(days=i)).strftime("%Y-%m-%d"), {}).get("totalCost", 0.0)
         for i in range(7)
     )
-    week_pct = min(week_cost / WEEKLY_API_BASELINE * 100, 100)
+    week_pct = week_cost / WEEKLY_API_BASELINE * 100
 
     alerts = []
     if rolling_ratio < RATIO_FLOOR:
