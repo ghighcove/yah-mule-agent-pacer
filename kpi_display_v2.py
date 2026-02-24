@@ -233,6 +233,23 @@ def rich_bar(value, max_val, width=18, fill="█", empty="░"):
     return fill * filled + empty * (width - filled)
 
 
+# ── Smokestack (TD-41) ────────────────────────────────────────────────────────
+
+STACK_BODY_H  = 6   # rows of chimney body
+STACK_W       = 7   # inner fill width (chars between | |)
+STACK_SMOKE_H = 2   # rows above chimney opening for overflow smoke
+
+def _stack_color(ratio):
+    """Shared heat-map color for both reactor stacks and hourly bars."""
+    if ratio >= 1.4:  return "magenta"
+    if ratio >= 1.2:  return "purple"
+    if ratio >= 1.0:  return "bright_red"
+    if ratio >= 0.9:  return "bright_green"
+    if ratio >= 0.6:  return "green"
+    if ratio >= 0.3:  return "cyan"
+    return "dim"
+
+
 # ── Data bundle ───────────────────────────────────────────────────────────────
 
 def fetch_all():
@@ -458,11 +475,12 @@ def panel_trend(d):
 
 
 def panel_hourly(d):
-    hourly = d["hourly"]
+    hourly       = d["hourly"]
     current_hour = datetime.now().hour
-    active_hours = [h for h in range(24) if hourly.get(h, {}).get("cost", 0) > 0 or h == current_hour]
-    if not active_hours:
-        active_hours = [current_hour]
+
+    # Hours with actual spend (excludes current if zero — used for avg)
+    spent_hours = [h for h in range(24) if hourly.get(h, {}).get("cost", 0) > 0]
+    avg_hour    = d["today_cost"] / len(spent_hours) if spent_hours else 0.0
 
     max_cost = max((hourly.get(h, {}).get("cost", 0) for h in range(24)), default=0.01) or 0.01
 
@@ -476,7 +494,14 @@ def panel_hourly(d):
         if cost_h == 0 and h != current_hour:
             continue
         now_mark = " [yellow]← now[/]" if h == current_hour else ""
-        color = "yellow" if h == current_hour and cost_h == 0 else ("green" if cost_h > 0 else "dim")
+        if h == current_hour and cost_h == 0:
+            color = "yellow"                            # cursor: no spend yet this hour
+        elif cost_h > 0 and avg_hour > 0:
+            color = _stack_color(cost_h / avg_hour)    # heat relative to today's avg hour
+        elif cost_h > 0:
+            color = "green"                             # first active hour, no avg yet
+        else:
+            color = "dim"
         t.add_row(
             f"{h:02d}h",
             f"[{color}]{rich_bar(cost_h, max_cost, width=18)}[/]",
@@ -485,15 +510,81 @@ def panel_hourly(d):
     return Panel(t, title="[cyan]TODAY BY HOUR[/]", border_style="cyan", padding=(0, 1))
 
 
+def render_stack(value, target, val_fmt="{:.1f}"):
+    """
+    Returns a list of rich Text lines (top→bottom) for one ASCII smokestack.
+    Total lines = STACK_SMOKE_H + STACK_BODY_H + 2  (base row + value label).
+    Fill from bottom; top of body = 100% of target ("just right" marker).
+    Overflow above target spills into smoke rows.
+    """
+    ratio    = (value / target) if target > 0 else 0.0
+    overflow = max(0.0, ratio - 1.0)
+    color    = _stack_color(ratio)
+    W        = STACK_W
+    lines    = []
+
+    # ── Smoke rows (shown above chimney when overflow > 0) ──
+    for s in range(STACK_SMOKE_H):
+        tier      = STACK_SMOKE_H - 1 - s        # 0 = closest to chimney
+        threshold = tier * 0.2                    # tier=0 → any overflow; tier=1 → >20% overflow
+        if overflow > threshold:
+            smoke_w = min(int(overflow * W * 1.5) + tier, W - 1)
+            smoke   = ("@" * smoke_w).center(W)
+            sc      = "magenta" if tier > 0 else "bright_red"
+            lines.append(Text(f"({smoke})", style=sc))
+        else:
+            lines.append(Text(f" {' ' * W} ", style="dim"))
+
+    # ── Chimney body (top row = "just right" marker, fill from bottom) ──
+    filled_rows = min(int(ratio * STACK_BODY_H), STACK_BODY_H)
+    empty_rows  = STACK_BODY_H - filled_rows
+
+    for i in range(STACK_BODY_H):
+        is_filled = (i >= empty_rows)
+        if i == 0:                          # top of body = target line
+            lines.append(Text(f"|{'-' * W}|", style="yellow" if is_filled else "dim"))
+        elif is_filled:
+            lines.append(Text(f"|{'#' * W}|", style=color))
+        else:
+            lines.append(Text(f"|{' ' * W}|", style="dim"))
+
+    lines.append(Text(f"/{'=' * W}\\", style="dim"))
+    val_str = val_fmt.format(value)
+    lines.append(Text(f"{val_str:^{W + 2}}", style=color))
+
+    return lines   # always STACK_SMOKE_H + STACK_BODY_H + 2 = 10 lines
+
+
+def panel_smokestacks(d):
+    eff_lines  = render_stack(d["today_ratio"],  RATIO_BASELINE,          val_fmt="{:.1f}x")
+    pace_lines = render_stack(d["binding_pct"],  QUOTA_SPRINT_GATE * 100, val_fmt="{:.0f}%")
+
+    t = Table.grid(padding=(0, 6))
+    t.add_column(width=STACK_W + 2)
+    t.add_column(width=STACK_W + 2)
+
+    for left, right in zip(eff_lines, pace_lines):
+        t.add_row(left, right)
+
+    return Panel(
+        t,
+        title="[cyan]REACTOR[/]",
+        subtitle="[dim]── = target  @@ = overflow  left = efficiency  right = quota[/]",
+        border_style="cyan",
+        padding=(0, 2),
+    )
+
+
 # ── Layout builder ────────────────────────────────────────────────────────────
 
 def build_layout(d, ts):
     layout = Layout()
     layout.split_column(
-        Layout(name="header", size=1),
-        Layout(name="top_row", size=11),
-        Layout(name="pattern", size=7),
-        Layout(name="trend",   size=11),
+        Layout(name="header",      size=1),
+        Layout(name="top_row",     size=11),
+        Layout(name="pattern",     size=7),
+        Layout(name="trend",       size=11),
+        Layout(name="smokestacks", size=12),
         Layout(name="hourly"),
     )
     layout["top_row"].split_row(
@@ -511,6 +602,7 @@ def build_layout(d, ts):
     layout["efficiency"].update(panel_efficiency(d))
     layout["pattern"].update(panel_pattern(d))
     layout["trend"].update(panel_trend(d))
+    layout["smokestacks"].update(panel_smokestacks(d))
     layout["hourly"].update(panel_hourly(d))
 
     return layout
