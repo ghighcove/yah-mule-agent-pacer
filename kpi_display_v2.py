@@ -2,13 +2,17 @@
 kpi_display_v2.py — Yah Mule CLI v2: full-screen live terminal layout.
 
 Replaces rolling stdout with rich.live panels. Full terminal height, no scroll.
+Run via yah_mule.py (unified entry point) or directly.
 
 Usage:
-    python kpi_display_v2.py              # live mode, 60s data refresh
+    python yah_mule.py                    # preferred — unified launcher
+    python kpi_display_v2.py              # direct: live mode, 60s data refresh
     python kpi_display_v2.py --interval 30
     python kpi_display_v2.py --once       # single-shot output and exit
     python kpi_display_v2.py --calibrate N [--sonnet-pct M]
 """
+
+__version__ = "2.1.0"
 
 import glob
 import json
@@ -555,21 +559,45 @@ def render_stack(value, target, val_fmt="{:.1f}"):
     return lines   # always STACK_SMOKE_H + STACK_BODY_H + 2 = 10 lines
 
 
+def render_mule(projected_pct):
+    """
+    10-line ASCII mule, colored by projected end-of-week quota risk.
+    green = GOOD (<65%), yellow = FULL (65-84%), red = GATE (85%+).
+    """
+    color  = trend_color(projected_pct)
+    health = "GOOD" if projected_pct < 65 else ("FULL" if projected_pct < 85 else "GATE")
+    lines = [
+        "          ",
+        "   |\\     ",
+        "  (|_\\    ",
+        "  (oo )~~ ",
+        "   \\__/   ",
+        "    ||    ",
+        "   /||\\   ",
+        "  / || \\  ",
+        " /__|  |__",
+        f"  {health:^8}",
+    ]
+    return [Text(line, style=color) for line in lines]
+
+
 def panel_smokestacks(d):
-    eff_lines  = render_stack(d["today_ratio"],  RATIO_BASELINE,          val_fmt="{:.1f}x")
-    pace_lines = render_stack(d["binding_pct"],  QUOTA_SPRINT_GATE * 100, val_fmt="{:.0f}%")
+    eff_lines  = render_stack(d["today_ratio"],       RATIO_BASELINE,          val_fmt="EFF {:.1f}x")
+    pace_lines = render_stack(d["projected_binding"], QUOTA_SPRINT_GATE * 100, val_fmt="PROJ {:.0f}%")
+    mule_lines = render_mule(d["projected_binding"])
 
-    t = Table.grid(padding=(0, 6))
+    t = Table.grid(padding=(0, 4))
     t.add_column(width=STACK_W + 2)
     t.add_column(width=STACK_W + 2)
+    t.add_column(width=12)
 
-    for left, right in zip(eff_lines, pace_lines):
-        t.add_row(left, right)
+    for left, right, mule in zip(eff_lines, pace_lines, mule_lines):
+        t.add_row(left, right, mule)
 
     return Panel(
         t,
         title="[cyan]REACTOR[/]",
-        subtitle="[dim]── = target  @@ = overflow  left = efficiency  right = quota[/]",
+        subtitle="[dim]── = target  @@ = overflow  |  mule color = projected quota risk[/]",
         border_style="cyan",
         padding=(0, 2),
     )
@@ -594,7 +622,7 @@ def build_layout(d, ts):
 
     layout["header"].update(
         Text(
-            f"  YAH MULE — Claude Efficiency Monitor       {ts}",
+            f"  YAH MULE v{__version__} — Claude Efficiency Monitor       {ts}",
             style="bold cyan",
         )
     )
