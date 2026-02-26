@@ -12,7 +12,7 @@ Usage:
     python kpi_display_v2.py --calibrate N [--sonnet-pct M]
 """
 
-__version__ = "2.2.0"
+__version__ = "2.3.0"
 
 import glob
 import json
