@@ -6,13 +6,14 @@ Run via yah_mule.py (unified entry point) or directly.
 
 Usage:
     python yah_mule.py                    # preferred — unified launcher
-    python kpi_display_v2.py              # direct: live mode, 60s data refresh
-    python kpi_display_v2.py --interval 30
+    python kpi_display_v2.py              # direct: live mode, 300s data refresh
+    python kpi_display_v2.py --interval 60
     python kpi_display_v2.py --once       # single-shot output and exit
     python kpi_display_v2.py --calibrate N [--sonnet-pct M]
+    python kpi_display_v2.py --profile    # log fetch/render timing to yah_mule_profile.log
 """
 
-__version__ = "2.4.0"
+__version__ = "2.5.0"
 
 import glob
 import json
@@ -35,6 +36,39 @@ try:
     _RICH = True
 except ImportError:
     _RICH = False
+
+try:
+    import psutil as _psutil
+    _PSUTIL = True
+except ImportError:
+    _PSUTIL = False
+
+# ── Profiling (--profile flag) ─────────────────────────────────────────────────
+
+_profile_path = Path(__file__).parent / "yah_mule_profile.log"
+_profile_fh = None   # set to open file handle when --profile is active
+
+
+def _prof_start(label):
+    """Return (label, rss_mb, t0) token if profiling active, else None."""
+    if _profile_fh is None:
+        return None
+    rss = _psutil.Process().memory_info().rss // (1024 * 1024) if _PSUTIL else 0
+    return (label, rss, time.monotonic())
+
+
+def _prof_end(tok):
+    """Write one timing line to profile log. No-op if tok is None."""
+    if tok is None or _profile_fh is None:
+        return
+    label, rss_b, t0 = tok
+    elapsed = (time.monotonic() - t0) * 1000
+    rss_a = _psutil.Process().memory_info().rss // (1024 * 1024) if _PSUTIL else 0
+    ts_str = datetime.now().strftime("%H:%M:%S")
+    _profile_fh.write(
+        f"{ts_str}  {label:<22}  {elapsed:8.1f}ms  rss {rss_b}→{rss_a}MB\n"
+    )
+    _profile_fh.flush()
 
 # ── Constants (mirror kpi_display.py) ─────────────────────────────────────────
 
@@ -828,8 +862,17 @@ def main():
         print("rich not installed. Run: pip install rich", file=sys.stderr)
         sys.exit(1)
 
-    # --interval
-    interval = 60
+    # --profile: enable timing log
+    global _profile_fh
+    if "--profile" in sys.argv:
+        _profile_fh = open(_profile_path, "a", encoding="utf-8")
+        _profile_fh.write(f"\n--- profile session {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} ---\n")
+        _profile_fh.flush()
+        mem_note = "" if _PSUTIL else " (install psutil for memory tracking)"
+        print(f"[profile] logging to {_profile_path}{mem_note}", file=sys.stderr)
+
+    # --interval  (default 300s — was 60s; use --interval 60 to restore old cadence)
+    interval = 300
     if "--interval" in sys.argv:
         try:
             interval = int(sys.argv[sys.argv.index("--interval") + 1])
@@ -842,15 +885,20 @@ def main():
     console = Console()
 
     if once:
+        tok = _prof_start("fetch_all")
         d = fetch_all()
+        _prof_end(tok)
         ts = datetime.now().strftime("%Y-%m-%d  %H:%M:%S")
         console.print(build_layout(d, ts))
         return
 
     # Full-screen live mode
+    tok = _prof_start("fetch_all (init)")
     d = fetch_all()
+    _prof_end(tok)
     ts = datetime.now().strftime("%Y-%m-%d  %H:%M:%S")
     last_fetch = time.monotonic()
+    last_minute = datetime.now().minute
 
     with Live(
         build_layout(d, ts),
@@ -858,14 +906,29 @@ def main():
         console=console,
         refresh_per_second=0.2,
     ) as live:
+        data_dirty = False  # initial build already done above
         while True:
             time.sleep(5)
-            ts = datetime.now().strftime("%Y-%m-%d  %H:%M:%S")
-            now = time.monotonic()
-            if now - last_fetch >= interval:
+            now_mono = time.monotonic()
+            now_dt   = datetime.now()
+            ts       = now_dt.strftime("%Y-%m-%d  %H:%M:%S")
+
+            # Fetch new data on interval
+            if now_mono - last_fetch >= interval:
+                tok = _prof_start("fetch_all")
                 d = fetch_all()
-                last_fetch = now
-            live.update(build_layout(d, ts))
+                _prof_end(tok)
+                last_fetch = now_mono
+                data_dirty = True
+
+            # Rebuild layout only when data changed OR the minute ticked
+            # (minute tick drives hourglass animation + timestamp display)
+            if data_dirty or now_dt.minute != last_minute:
+                tok = _prof_start("build_layout")
+                live.update(build_layout(d, ts))
+                _prof_end(tok)
+                last_minute = now_dt.minute
+                data_dirty = False
 
 
 if __name__ == "__main__":
