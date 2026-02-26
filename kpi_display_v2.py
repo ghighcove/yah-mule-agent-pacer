@@ -850,10 +850,10 @@ def main():
         build_layout(d, ts),
         screen=True,
         console=console,
-        refresh_per_second=1,
+        refresh_per_second=0.2,
     ) as live:
         while True:
-            time.sleep(1)
+            time.sleep(5)
             ts = datetime.now().strftime("%Y-%m-%d  %H:%M:%S")
             now = time.monotonic()
             if now - last_fetch >= interval:
