@@ -12,7 +12,7 @@ Usage:
     python kpi_display_v2.py --calibrate N [--sonnet-pct M]
 """
 
-__version__ = "2.3.0"
+__version__ = "2.4.0"
 
 import glob
 import json
@@ -173,7 +173,13 @@ def fetch_hourly_today():
                     if obj.get("type") != "assistant":
                         continue
                     ts = obj.get("timestamp", obj.get("created_at", ""))
-                    if not ts or ts[:10] != today_str:
+                    if not ts:
+                        continue
+                    try:
+                        ts_local_date = datetime.fromisoformat(ts.replace("Z", "+00:00")).astimezone().strftime("%Y-%m-%d")
+                    except Exception:
+                        continue
+                    if ts_local_date != today_str:
                         continue
                     rid = obj.get("requestId")
                     if rid:
