@@ -72,9 +72,9 @@ QUOTA_SCHED_RESERVE         = 0.05     # 5% always reserved for crons
 # Reset schedule (relative to next_reset midnight, local time)
 # All-models: Saturday 12pm PT  →  +12h from midnight
 # Sonnet:     Sunday   2am PT   →  +26h from midnight  (14h dead zone)
-ALL_MODELS_RESET_HOUR = 12      # noon on reset day
-SONNET_RESET_HOUR     = 26      # 2am next day (26 = 24+2)
-DEAD_ZONE_HOURS       = SONNET_RESET_HOUR - ALL_MODELS_RESET_HOUR  # 14h
+ALL_MODELS_RESET_HOUR = 20      # 8pm PT (Anthropic unified reset 2026-02-26)
+SONNET_RESET_HOUR     = 20      # 8pm PT — same as all-models, no dead zone
+DEAD_ZONE_HOURS       = 0       # dead zone eliminated
 
 RATES = {
     "claude-sonnet-4-6":            {"input": 3.00,  "output": 15.00, "cache_write": 3.75,  "cache_read": 0.30},
@@ -121,9 +121,9 @@ def save_quota_config(quota, sonnet_quota, week_cost, claude_pct, sonnet_week_co
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def get_week_start():
-    """Week resets every 7 days from Feb 7 billing anchor."""
+    """Week resets every 7 days from Feb 26 billing anchor (Anthropic early-reset 2026-02-26)."""
     today = date.today()
-    billing_anchor = date(2026, 2, 7)
+    billing_anchor = date(2026, 2, 26)
     days_since_anchor = (today - billing_anchor).days
     week_num = days_since_anchor // 7
     return billing_anchor + timedelta(weeks=week_num)

@@ -13,7 +13,7 @@ Usage:
     python kpi_display_v2.py --profile    # log fetch/render timing to yah_mule_profile.log
 """
 
-__version__ = "2.5.0"
+__version__ = "2.6.0"
 
 import glob
 import json
@@ -85,9 +85,9 @@ WEEKLY_SONNET_QUOTA_DEFAULT = 789.0
 QUOTA_SPRINT_GATE       = 0.80
 QUOTA_ABORT             = 0.90
 QUOTA_SCHED_RESERVE     = 0.05
-ALL_MODELS_RESET_HOUR   = 12
-SONNET_RESET_HOUR       = 26
-DEAD_ZONE_HOURS         = SONNET_RESET_HOUR - ALL_MODELS_RESET_HOUR
+ALL_MODELS_RESET_HOUR   = 20    # 8pm PT (Anthropic unified reset 2026-02-26)
+SONNET_RESET_HOUR       = 20    # 8pm PT — same as all-models, no dead zone
+DEAD_ZONE_HOURS         = 0     # dead zone eliminated
 
 RATES = {
     "claude-sonnet-4-6":            {"input": 3.00,  "output": 15.00, "cache_write": 3.75,  "cache_read": 0.30},
@@ -118,7 +118,7 @@ def load_quota_config():
 
 def get_week_start():
     today = date.today()
-    anchor = date(2026, 2, 7)
+    anchor = date(2026, 2, 26)  # Anthropic early-reset 2026-02-26; new cycle = Thu 8pm PT
     days = (today - anchor).days
     return anchor + timedelta(weeks=days // 7)
 
