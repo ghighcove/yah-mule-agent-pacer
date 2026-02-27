@@ -45,7 +45,7 @@ Historical captures of v1 in operation: `assets/dev_history/image (6).png`, `ima
 
 ### v2 — `kpi_display_v2.py` + `yah_mule.py` (rich.live full-screen)
 
-**Current version**: 2.2.0
+**Current version**: 2.7.0
 
 **Key additions over v1:**
 - `rich.live` full-screen layout — no scroll, entire terminal height used
@@ -61,6 +61,45 @@ watch.ps1
 ```
 
 **Watch.ps1 fix (2026-02-24)**: Original watch.ps1 ran a PowerShell while loop calling `kpi_display.py` (v1). Rewritten as thin launcher calling `yah_mule.py --interval 60`. Now v2 manages its own refresh loop.
+
+---
+
+### v2.3.0 — CPU Churn Fix (2026-02-25, f5ce119)
+
+`refresh_per_second` was 1, `time.sleep` was 1s → layout rebuilt ~60x/min just to tick the timestamp. Changed to `refresh_per_second=0.2`, `sleep=5`. Now ~12 rebuilds/min. Do not revert.
+
+---
+
+### v2.4.0 — UTC/Local Timezone Fix (2026-02-25, b890f26)
+
+`fetch_hourly_today()` was comparing UTC dates to local date string, causing sessions to disappear at UTC midnight (before local midnight). Fixed by converting timestamps to local timezone before date comparison.
+
+---
+
+### v2.5.0 / v2.6.0 — Fetch Frequency + Billing Anchor Recalibration
+
+- Added `--profile` flag for timing instrumentation (fetch/render latency logging)
+- Reduced default fetch interval from 60s to 300s — sufficient for pacing purposes
+- Recalibrated billing anchor after Anthropic early reset
+- Dead zone logic updated to reflect actual reset timing
+
+---
+
+### v2.7.0 — mtime Filter + Drop Minute-Tick (2026-02-27)
+
+Two performance optimizations approved and implemented:
+
+**1. `fetch_hourly_today()` — mtime filter + in-memory cache**
+- Old: recursive glob across ALL `.jsonl` files (~43+ projects), read every line, O(all session history) every 5 min
+- New: filter by file mtime ≥ today's midnight — on active days, 1-3 files; on idle days, 0 files
+- Added mtime-invalidated cache: if no today-files changed since last scan, returns cached result immediately
+- Cache vars: `_hourly_cache`, `_hourly_cache_mtime` (module-level)
+
+**2. Main loop — drop minute-tick rebuild**
+- Old: layout rebuilt on data fetch (every 300s) OR minute tick (every 60s) for hourglass animation + timestamp
+- New: layout rebuilt only on data fetch (every 300s)
+- Removed `last_minute` tracking and the `data_dirty or now_dt.minute != last_minute` condition
+- User feedback: "I don't need that much granularity on the minute/second" — same-minute granularity is fine
 
 ---
 

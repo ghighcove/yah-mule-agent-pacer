@@ -13,10 +13,11 @@ Usage:
     python kpi_display_v2.py --profile    # log fetch/render timing to yah_mule_profile.log
 """
 
-__version__ = "2.6.0"
+__version__ = "2.7.0"
 
 import glob
 import json
+import os
 import sys
 import time
 import sqlite3
@@ -99,6 +100,10 @@ RATES = {
 }
 DEFAULT_RATE = {"input": 3.00, "output": 15.00, "cache_write": 3.75, "cache_read": 0.30}
 
+
+# ── Hourly scan cache (mtime-invalidated, today-only) ─────────────────────────
+_hourly_cache: dict = {}
+_hourly_cache_mtime: float = 0.0
 
 # ── Data functions (same logic as kpi_display.py) ─────────────────────────────
 
@@ -190,10 +195,25 @@ def dead_zone_status(next_reset):
 
 
 def fetch_hourly_today():
+    global _hourly_cache, _hourly_cache_mtime
     today_str = date.today().strftime("%Y-%m-%d")
+    today_start = datetime.combine(date.today(), datetime.min.time()).timestamp()
+
+    # Filter to JSONL files modified today — skips 40+ dormant project files
+    today_files = [
+        p for p in glob.glob(str(CLAUDE_DIR / "**" / "*.jsonl"), recursive=True)
+        if os.path.getmtime(p) >= today_start
+    ]
+
+    # Cache invalidation: if no today-files changed since last scan, return cached
+    max_mtime = max((os.path.getmtime(p) for p in today_files), default=0.0)
+    if max_mtime == _hourly_cache_mtime and _hourly_cache is not None:
+        return _hourly_cache
+
+    # Re-parse only today's files
     hourly = defaultdict(lambda: {"cost": 0.0})
     seen = set()
-    for path in glob.glob(str(CLAUDE_DIR / "**" / "*.jsonl"), recursive=True):
+    for path in today_files:
         try:
             with open(path, "r", encoding="utf-8") as f:
                 for line in f:
@@ -245,6 +265,9 @@ def fetch_hourly_today():
                     hourly[hour]["cost"] += cost
         except Exception:
             continue
+
+    _hourly_cache = hourly
+    _hourly_cache_mtime = max_mtime
     return hourly
 
 
@@ -898,7 +921,6 @@ def main():
     _prof_end(tok)
     ts = datetime.now().strftime("%Y-%m-%d  %H:%M:%S")
     last_fetch = time.monotonic()
-    last_minute = datetime.now().minute
 
     with Live(
         build_layout(d, ts),
@@ -906,29 +928,20 @@ def main():
         console=console,
         refresh_per_second=0.2,
     ) as live:
-        data_dirty = False  # initial build already done above
         while True:
             time.sleep(5)
             now_mono = time.monotonic()
-            now_dt   = datetime.now()
-            ts       = now_dt.strftime("%Y-%m-%d  %H:%M:%S")
+            ts       = datetime.now().strftime("%Y-%m-%d  %H:%M:%S")
 
-            # Fetch new data on interval
+            # Fetch new data on interval; rebuild layout only on new data
             if now_mono - last_fetch >= interval:
                 tok = _prof_start("fetch_all")
                 d = fetch_all()
                 _prof_end(tok)
                 last_fetch = now_mono
-                data_dirty = True
-
-            # Rebuild layout only when data changed OR the minute ticked
-            # (minute tick drives hourglass animation + timestamp display)
-            if data_dirty or now_dt.minute != last_minute:
                 tok = _prof_start("build_layout")
                 live.update(build_layout(d, ts))
                 _prof_end(tok)
-                last_minute = now_dt.minute
-                data_dirty = False
 
 
 if __name__ == "__main__":
