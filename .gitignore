@@ -9,3 +9,6 @@ venv/
 *.log
 .DS_Store
 Thumbs.db
+
+# Session context files — private, never publish
+tasks/
