@@ -13,7 +13,7 @@ Usage:
     python kpi_display_v2.py --profile    # log fetch/render timing to yah_mule_profile.log
 """
 
-__version__ = "2.7.0"
+__version__ = "2.7.1"
 
 import glob
 import json
@@ -89,6 +89,13 @@ QUOTA_SCHED_RESERVE     = 0.05
 ALL_MODELS_RESET_HOUR   = 20    # 8pm PT (Anthropic unified reset 2026-02-26)
 SONNET_RESET_HOUR       = 20    # 8pm PT — same as all-models, no dead zone
 DEAD_ZONE_HOURS         = 0     # dead zone eliminated
+
+# ── Refresh tuning ─────────────────────────────────────────────────────────────
+# REFRESH_INTERVAL: seconds between data fetches (ccusage + SQLite reads).
+# The display clock updates every 5s regardless — this only controls data freshness.
+# Lower = more responsive but more ccusage subprocess calls.
+# Recommended range: 60 (reactive) to 600 (low overhead).
+REFRESH_INTERVAL        = 300   # default: 5 minutes. Override via --interval flag.
 
 RATES = {
     "claude-sonnet-4-6":            {"input": 3.00,  "output": 15.00, "cache_write": 3.75,  "cache_read": 0.30},
@@ -894,8 +901,8 @@ def main():
         mem_note = "" if _PSUTIL else " (install psutil for memory tracking)"
         print(f"[profile] logging to {_profile_path}{mem_note}", file=sys.stderr)
 
-    # --interval  (default 300s — was 60s; use --interval 60 to restore old cadence)
-    interval = 300
+    # --interval  overrides REFRESH_INTERVAL constant (default 300s)
+    interval = REFRESH_INTERVAL
     if "--interval" in sys.argv:
         try:
             interval = int(sys.argv[sys.argv.index("--interval") + 1])

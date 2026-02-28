@@ -12,7 +12,7 @@ A live terminal dashboard for Claude Max subscribers running heavy agentic workl
 
 ![Yah Mule v2.2.0 in action](docs/screenshot.jpg)
 
-The full-screen monitor updates every 60 seconds. Every panel tells a specific part of the story.
+The full-screen display clock ticks every 5 seconds. Data (spend, efficiency, hourly burn) refreshes every 5 minutes by default — adjustable via `REFRESH_INTERVAL`. Every panel tells a specific part of the story.
 
 ---
 
@@ -119,6 +119,7 @@ These constants in `kpi_display_v2.py` are the main levers:
 
 | Constant | Default | What it controls |
 |---|---|---|
+| `REFRESH_INTERVAL` | 300 | Seconds between data fetches (ccusage + SQLite). Lower = more responsive, more subprocess calls. Range: 60–600 |
 | `QUOTA_SPRINT_GATE` | 0.80 | Stop new sprint work above this % of quota |
 | `QUOTA_ABORT` | 0.90 | Hard stop threshold |
 | `QUOTA_SCHED_RESERVE` | 0.05 | Buffer reserved for scheduled/cron jobs |
