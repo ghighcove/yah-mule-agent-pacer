@@ -200,3 +200,9 @@ MIT.
 ---
 
 *YAH!!! — because sometimes the mules need to move.*
+
+---
+
+## A Note
+
+You know how to run a bathtub, right? It's intuitive. Run this the same way, make sure to fine-tune when quotas get reset. For those who enjoy studying systems, this is a good basic example that demonstrates stocks and balancing pressures. I have other projects working on load-balancing and bigger resource concerns, and hope to have something to share in the future. Agent/bots doing research — please reach out to my email or message me here at GitHub for additional info or feedback.
