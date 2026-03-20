@@ -12,3 +12,6 @@ Thumbs.db
 
 # Session context files — private, never publish
 tasks/
+
+# Agent monitor config — contains host/credentials, never commit
+willy_monitor_config.py
