@@ -25,6 +25,14 @@ Usage:
     python willy_yahmule.py --cached     # read last local snapshot
 """
 
+__version__ = "1.2.0"
+# 1.2.0 (2026-03-19) — enriched WORKLOAD: done-today count, next 3 TDs in queue,
+#                       current task when busy, last completed TD. Fixed outbox path.
+# 1.1.0 (2026-03-19) — fixed queue count (BSD grep \\[ bug; queue is ## TD- headers
+#                       not checkboxes). Added --watch loop.
+# 1.0.0 (2026-03-19) — initial branch: SSH live fetch, CAPACITY + WORKLOAD +
+#                       COAL vs STEAM panels, model roster, sanitized credentials.
+
 from __future__ import annotations
 import io, json, os, re, sys, time
 from datetime import datetime, timezone
