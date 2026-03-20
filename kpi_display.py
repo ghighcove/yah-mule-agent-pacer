@@ -121,9 +121,9 @@ def save_quota_config(quota, sonnet_quota, week_cost, claude_pct, sonnet_week_co
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def get_week_start():
-    """Week resets every 7 days from Feb 26 billing anchor (Anthropic early-reset 2026-02-26)."""
+    """Week resets every 7 days from Mar 13 billing anchor (verified 2026-03-12 from Claude.ai /usage — resets Thu 9pm PT)."""
     today = date.today()
-    billing_anchor = date(2026, 2, 26)
+    billing_anchor = date(2026, 3, 13)
     days_since_anchor = (today - billing_anchor).days
     week_num = days_since_anchor // 7
     return billing_anchor + timedelta(weeks=week_num)

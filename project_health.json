@@ -1,0 +1,15 @@
+{
+  "project_name": "yah-mule-agent-pacer",
+  "updated_at": "2026-03-20T19:17:53Z",
+  "uptime_days": 0,
+  "outputs_last_7d": 3,
+  "last_meaningful_output": "2026-03-20T19:12:38Z",
+  "owner_sessions_last_14d": 4,
+  "auto_value_score": 7.5,
+  "spawn_depth": 1,
+  "spawned_for": "TBD \u2014 set via --spawned-for flag",
+  "status": "active",
+  "recent_outputs": [],
+  "blockers": [],
+  "next_run": null
+}
